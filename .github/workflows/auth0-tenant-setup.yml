@@ -1,0 +1,16 @@
+name: Configure Auth0 Tenant
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, dev]
+
+jobs:
+  configure-auth0-tenant:
+    uses: ./.github/workflows/terraform-apply.yml
+    with:
+      working_directory: terraform/auth0-tenant
+    secrets:
+      AUTH0_CLIENT_SECRET: ${{ secrets.AUTH0_CLIENT_SECRET }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
