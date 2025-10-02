@@ -1,0 +1,47 @@
+name: Configure Auth0 Tenant with Strong Authentication
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  configure-auth0-tenant:
+    runs-on: ubuntu-latest
+    environment: production
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        working-directory: terraform/auth0-tenant
+        run: terraform init
+
+      - name: Terraform Plan
+        working-directory: terraform/auth0-tenant
+        env:
+          AUTH0_DOMAIN: ${{ secrets.AUTH0_DOMAIN }}
+          AUTH0_CLIENT_ID: ${{ secrets.AUTH0_CLIENT_ID }}
+          AUTH0_CLIENT_SECRET: ${{ secrets.AUTH0_CLIENT_SECRET }}
+        run: terraform plan
+
+      - name: Terraform Apply
+        working-directory: terraform/auth0-tenant
+        env:
+          AUTH0_DOMAIN: ${{ secrets.AUTH0_DOMAIN }}
+          AUTH0_CLIENT_ID: ${{ secrets.AUTH0_CLIENT_ID }}
+          AUTH0_CLIENT_SECRET: ${{ secrets.AUTH0_CLIENT_SECRET }}
+        run: terraform apply -auto-approve
+
+      - name: Output Configuration
+        working-directory: terraform/auth0-tenant
+        run: |
+          echo "Auth0 Domain: $(terraform output -raw auth0_domain)"
+          echo "Auth0 Client ID: $(terraform output -raw auth0_client_id)"
+
+      - name: Success
+        run: echo "Auth0 tenant configured with strong authentication policies"
