@@ -3,7 +3,6 @@ name: Configure Auth0 Tenant
 on:
   workflow_dispatch:
   push:
-    branches: [main, dev]
 
 jobs:
   configure-auth0-tenant:
