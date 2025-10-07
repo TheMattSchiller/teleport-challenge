@@ -53,18 +53,10 @@ user-updater/
 #### Resources Created:
 1. **`auth0_client`** - OIDC application for Grafana
 
-2. **`auth0_role`** - RBAC roles (3 roles defined)
-    - `grafana_admin`: Full system access
-    - `grafana_editor`: Dashboard creation and editing
-    - `grafana_viewer`: Read-only access
-
 #### Required API Scopes:
 - `create:clients`
 - `read:clients`
 - `update:clients`
-- `create:roles`
-- `read:roles`
-- `update:roles`
 
 ### User Management Go Application
 
@@ -76,8 +68,6 @@ user-updater/
 - `create:users`
 - `update:users`
 - `read:roles`
-- `create:role_members`
-- `update:role_members`
 
 ## APIs and Integrations
 
@@ -87,7 +77,7 @@ user-updater/
 **Client Credentials Flow** (Primary)
 - Uses `AUTH0_CLIENT_ID` and `AUTH0_CLIENT_SECRET`
 - Machine-to-machine authentication
-- Required scopes: `read:users`, `create:users`, `update:users`, `read:roles`, `create:role_members`ails
+- Required scopes: `read:users`, `create:users`, `update:users`, `read:roles`
 
 #### Go SDK Integration
 Github actions will passthrough credentials from secrets to environment variables for the go app
