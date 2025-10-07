@@ -17,19 +17,67 @@ GitHub Actions → Auth0 Setup → Grafana OIDC → User Registration
 
 ```
 .github/workflows
-│   ├── auth0-tenant-setup.yml
-│   ├── terraform-apply.yml
+│   ├── auth0-tenant-setup.yml # Runs terraform-apply for the auth0-tenant workspace
+│   ├── auth0-grafana.yml      # Runs terraform-apply for the auth0-grafana workspace
+│   ├── auth0-users.yml        # Runs go script for the auth0 user creation
+│   ├── terraform-apply.yml    # Generic terraform-apply which can be reused
 terraform/
-├── auth0-tenant/          # Auth0 tenant and database setup
+├── auth0-tenant/         # Auth0 tenant and database setup 
 │   ├── main.tf           # Tenant and connection configuration
 │   └── variables.tf      # Input variables
 ├── auth0-grafana/        # Grafana OIDC application
 │   ├── main.tf           # OIDC application configuration
 │   ├── roles.tf          # Role definitions
 │   └── variables.tf      # Input variables
-└── user-updater/
+user-updater/
 │   ├── main.go           # Go app to update users and add to groups
+│   ├── users.yaml        # list of users for go app to consume
 ```
+
+### Auth0 Tenant Module (`terraform/auth0-tenant/`)
+
+#### Resources Created:
+1. **`auth0_tenant`** - Main tenant configuration
+
+2. **`auth0_connection`** - Database connection with strong authentication
+
+#### Required API Scopes:
+- `read:tenant_settings`
+- `update:tenant_settings`
+- `create:connections`
+- `read:connections`
+- `update:connections`
+
+### Auth0 Grafana Module (`terraform/auth0-grafana/`)
+
+#### Resources Created:
+1. **`auth0_client`** - OIDC application for Grafana
+
+2. **`auth0_role`** - RBAC roles (3 roles defined)
+    - `grafana_admin`: Full system access
+    - `grafana_editor`: Dashboard creation and editing
+    - `grafana_viewer`: Read-only access
+
+#### Required API Scopes:
+- `create:clients`
+- `read:clients`
+- `update:clients`
+- `create:roles`
+- `read:roles`
+- `update:roles`
+
+### User Management Go Application
+
+#### Auth0 Management API Integration:
+- user management go application is used to update users and add them to roles
+
+#### Required API Scopes for Go Application:
+- `read:users`
+- `create:users`
+- `update:users`
+- `read:roles`
+- `create:role_members`
+- `update:role_members`
 
 ## APIs and Integrations
 
@@ -49,12 +97,13 @@ m, err := management.New(domain, management.WithClientCredentials(ctx, clientID,
 
 // User creation
 userData := &management.User{
-    Email:         &user.Email,
-    Password:      &user.Password,
-    Name:          &user.Name,
-    Blocked:       &user.Blocked,
-    EmailVerified: &user.Verified,
-    Connection:    stringPtr("Teleport-Challenge"),
+   Email:         &user.Email,
+   Password:      &user.Password,
+   Name:          &user.Name,
+   PhoneNumber:   &user.Phone,
+   Blocked:       &user.Blocked,
+   EmailVerified: &user.Verified,
+   Connection:    stringPtr("Teleport-Challenge"), // Use the database connection from Terraform
 }
 
 // Role assignment
@@ -62,15 +111,34 @@ roleAssignment := &management.Role{ID: &roleID}
 err = m.User.AssignRoles(ctx, userID, []*management.Role{roleAssignment})
 ```
 
+### Adding users
+
+#### User Creation Process
+The Go application handles user creation with Auth0's Management API.
+Users are added to users.yaml file
+
+#### User Data Structure
+```yaml
+users:
+  - email: "admin@teleport-challenge.com"
+    password: "SecurePass123!"
+    name: "Admin User"
+    phone: "+19165550101"
+    role: "Grafana Admin"
+    blocked: false
+    verified: true
+```
+
 ### GitHub Actions API
-- **Workflow Triggers**: Push events, manual dispatch
+- **Workflow Triggers**: Manual dispatch
 - **Secret Management**: Secure credential storage
 - **Execution**: Multi-stage deployment pipeline
 
-### AWS S3 API
-- **Terraform State Hosting**: Persists state
-
-### 
+#### Workflow Files:
+- **`auth0-tenant-setup.yml`**: Workflow that configures Auth0 tenant, password policies, MFA
+- **`auth0-grafana.yml`**: Workflow to configure only the Grafana OIDC application
+- **`auth0-users.yml`**: Workflow to register users and assign them to Grafana roles
+- **`terraform-apply.yml`**: Reusable workflow for running Terraform apply
 
 ## Security Considerations
 
@@ -80,21 +148,21 @@ err = m.User.AssignRoles(ctx, userID, []*management.Role{roleAssignment})
 - **Strength**: Fair level (8+ characters, mixed case, numbers, symbols)
 - **History**: 5 previous passwords remembered
 - **Personal Info**: Validation against user profile data
-- **Brute Force**: Automatic account lockout after failed attempts
+- **MFA Enabled**: MFA will be enabled to help protect against phishing
 
-### Authorization Security
-
-#### Role-Based Access Control (RBAC)
-1. **Grafana Admin**
-    - Full system access
-
-2. **Grafana Editor**
-    - Dashboard creation and editing
-    - Data source configuration
-
-3. **Grafana Viewer**
-    - Read-only access to dashboards
-    - No configuration changes
+### MFA Setup
+This setup will use the auth0 provider for SMS and voice MFA. It will use the PhoneNumber value from the `management.User` struct of the Auth0 SDK
+```hcl
+resource "auth0_guardian" "mfa" {
+  policy = "all-applications"
+  
+  phone {
+    enabled = true
+    provider = "auth0"
+    message_types = ["sms", "voice"]
+  }
+}
+```
 
 ### Infrastructure Security
 
@@ -107,8 +175,7 @@ err = m.User.AssignRoles(ctx, userID, []*management.Role{roleAssignment})
 
 #### Encryption
 - **In Transit**: TLS 1.2+ for all communications
-- **At Rest**: AWS EBS encryption for persistent state storage
-- **Database**: Auth0 tenant encryption
+- **Database**: Auth0 bcrypt server side encryption
 - **Secrets**: GitHub encrypted storage
 
 ## Edge Cases and Error Handling
@@ -121,8 +188,8 @@ Similar to terraform we do not add resources (users in this case) if they alread
 // Check for existing users before creation
 existingUsers, err := m.User.Search(ctx, management.Query(fmt.Sprintf("email:%s", user.Email)))
 if len(existingUsers.Users) > 0 {
-    fmt.Printf("User %s already exists, skipping creation\n", user.Email)
-    continue
+fmt.Printf("User %s already exists, skipping creation\n", user.Email)
+continue
 }
 ```
 #### Duplicate Auth0 Resouces Handling
