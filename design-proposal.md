@@ -194,3 +194,7 @@ continue
 ```
 #### Duplicate Auth0 Resouces Handling
 The inclusion of the remote state for terraform easily handles the edge case where resources already exist.
+
+### Changes and Review process
+Currently, collaborators/owners can make a PR to this repo and submit it for review. The current setup requires a PR to 
+be merged onto main before it can be deployed with a workflow dispatch
