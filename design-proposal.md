@@ -182,7 +182,7 @@ fmt.Printf("User %s already exists, skipping creation\n", user.Email)
 continue
 }
 ```
-#### Duplicate Auth0 Resouces Handling
+#### Duplicate Auth0 Resources Handling
 The inclusion of the remote state for terraform easily handles the edge case where resources already exist.
 
 ### Changes and Review process
